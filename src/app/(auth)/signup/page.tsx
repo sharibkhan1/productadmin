@@ -1,152 +1,175 @@
 'use client';
 
+
 import * as z from "zod";
-import { SetStateAction, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { AdminRegister } from '../../../../actions/adminregister';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from 'next/navigation';
+import { CardWrapper } from '@/components/auth/card-wrapper';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { FormError } from '@/components/form-error';
+import { FormSuccess } from '@/components/form-success';
+import { Button } from '@/components/ui/button';
+import { RetailerRegister } from "../../../../actions/register";
+import FileUpload from "@/components/file-upload";
 
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { FormError } from "@/components/form-error";
-import { FormSuccess } from "@/components/form-success";
-import { ExtendedRegisterSchema, Register } from "../../../../actions/register";
-import { CardWrapper } from "@/components/auth/card-wrapper";
-
-export default function Signup() {
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | undefined>("");
-  const [success, setSuccess] = useState<string | undefined>("");
+export default function AdminSignup() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordAgain, setPasswordAgain] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | undefined>();
+  const [success, setSuccess] = useState<string | undefined>();
 
-  // Initialize form with react-hook-form and zod validation
+  const ExtendedRegisterSchema = z.object({
+    email: z.string().email("Invalid email format"),
+    profileImage: z.string().min(1,{
+        message:"Server image is required"
+    }),
+    password: z.string().min(6, "Password must be at least 6 characters long"),
+    passwordAgain: z.string(),
+}).refine((data) => data.password === data.passwordAgain, {
+    message: "Passwords do not match",
+    path: ["passwordAgain"], // Set the path where the error should be displayed
+});
+
   const form = useForm<z.infer<typeof ExtendedRegisterSchema>>({
     resolver: zodResolver(ExtendedRegisterSchema),
     defaultValues: {
       email: "",
       password: "",
       passwordAgain: "",
-    },
+      profileImage:"",
+  },
+});
+
+const onSubmit = async (values: z.infer<typeof ExtendedRegisterSchema>) => {
+  setError("");
+  setSuccess("");
+
+  // Check if passwords match before calling AdminRegister
+  if (values.password !== values.passwordAgain) {
+      setError("Passwords do not match!");
+      return;
+  }
+
+  startTransition(async () => {
+      const name = values.email.split('@')[0]; // Derive name from email
+      const userData = {
+          email: values.email,
+          password: values.password,
+          name,
+          passwordAgain: values.passwordAgain,
+          profileImage:values.profileImage, // Or use a placeholder image URL
+        };
+
+      const result = await RetailerRegister(userData); // Call AdminRegister function
+
+      setError(result.error);
+      setSuccess(result.success ? "Registration successful!" : undefined);
   });
+};
 
-  // Form submission handler
-  const onSubmit = async (values: z.infer<typeof ExtendedRegisterSchema>) => {
-    setError("");
-    setSuccess("");
-
-    // Add default values for fields not included in the form
-    const submitData = {
-      ...values,
-      profileImage: null, // Default profile image
-      Products: [], // Default empty product list
-    };
-
-    startTransition(() => {
-        Register(submitData)
-          .then((data) => {
-            if (!data) {
-              setError("Something went wrong! Please try again.");
-              return;
-            }
-      
-            if (data.error) {
-              setError(data.error);
-            }
-      
-            if (data.success) {
-              setSuccess(data.success);
-              router.push('/signin'); // Only do this after ensuring data is valid
-            }
-          })
-          .catch((err) => {
-            console.error(err); // Log any errors from Register
-            setError("An unexpected error occurred");
-          });
-      });
-    };
 
   return (
+    <div className="flex-1 py-36 md:px-16 w-full">
+        <div className="flex flex-col h-full gap-3">
     <CardWrapper
-      headerLabel='Create an account'
-      backButtonLabel='Already have an account?'
-      backButtonHref='/signin'
-      showSocial
-    >
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="space-y-4">
-            {/* Email Field */}
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      disabled={isPending}
-                      placeholder="john@gmail.com"
-                      type="email"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Password Field */}
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      disabled={isPending}
-                      placeholder="# # # # # # # #"
-                      type="password"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Password Again Field */}
-            <FormField
-              control={form.control}
-              name="passwordAgain"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password Again</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      disabled={isPending}
-                      placeholder="Repeat your password"
-                      type="password"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {/* Error and Success Messages */}
-          <FormError message={error} />
-          <FormSuccess message={success} />
-
-          {/* Submit Button */}
-          <Button variant="secondary" className="w-full py-2 rounded-md border border-black bg-white text-black text-sm hover:shadow-[4px_4px_0px_0px_rgba(0,0,0)] transition duration-200" disabled={isPending} type="submit">
-            Create an account
-          </Button>
-        </form>
-      </Form>
-    </CardWrapper>
+            headerLabel='Sign up as Admin'
+            backButtonLabel='Already have an account?'
+            backButtonHref='/signin' // Update with the actual path for signing in
+            showSocial
+        >
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <div className="space-y-4">
+                    <FormField
+                            control={form.control}
+                            name="profileImage"
+                            render={({field})=>(
+                                <FormItem>
+                                    <FormControl>
+                                        <FileUpload 
+                                            endpoint="serverImage"
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                            />
+                        <FormField
+                            control={form.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            {...field}
+                                            disabled={isPending}
+                                            placeholder="john@gmail.com"
+                                            type="email"
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Password</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            {...field}
+                                            disabled={isPending}
+                                            placeholder="********"
+                                            type="password"
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="passwordAgain"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Password Again</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            {...field}
+                                            disabled={isPending}
+                                            placeholder="********"
+                                            type="password"
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <FormError message={error} />
+                    <FormSuccess message={success} />
+                    <Button
+                        variant="secondary" className="w-full py-2 rounded-md border border-black bg-white text-black text-sm hover:shadow-[4px_4px_0px_0px_rgba(0,0,0)] transition duration-200"
+                        disabled={isPending}
+                        type="submit"
+                    >
+                        Sign Up
+                    </Button>
+                </form>
+            </Form>
+        </CardWrapper>
+        </div>
+        </div>
   );
 }

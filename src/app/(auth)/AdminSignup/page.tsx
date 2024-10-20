@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { FormError } from '@/components/form-error';
 import { FormSuccess } from '@/components/form-success';
 import { Button } from '@/components/ui/button';
+import FileUpload from "@/components/file-upload";
 
 export default function AdminSignup() {
   const router = useRouter();
@@ -26,6 +27,9 @@ export default function AdminSignup() {
   const ExtendedRegisterSchema = z.object({
     companyName: z.string().min(1, "Company name must be at least 1 character long."),
     email: z.string().email("Invalid email format"),
+    profileImage: z.string().min(1,{
+        message:"Server image is required"
+    }),
     password: z.string().min(6, "Password must be at least 6 characters long"),
     passwordAgain: z.string(),
 }).refine((data) => data.password === data.passwordAgain, {
@@ -40,6 +44,7 @@ export default function AdminSignup() {
       email: "",
       password: "",
       passwordAgain: "",
+      profileImage:"",
   },
 });
 
@@ -60,7 +65,7 @@ const onSubmit = async (values: z.infer<typeof ExtendedRegisterSchema>) => {
           password: values.password,
           name,
           passwordAgain: values.passwordAgain,
-          profileImage: null, // Or use a placeholder image URL
+          profileImage: values.profileImage, // Or use a placeholder image URL
           companyName: values.companyName, // Add company name here
         };
 
@@ -84,6 +89,21 @@ const onSubmit = async (values: z.infer<typeof ExtendedRegisterSchema>) => {
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                     <div className="space-y-4">
+                    <FormField
+                            control={form.control}
+                            name="profileImage"
+                            render={({field})=>(
+                                <FormItem>
+                                    <FormControl>
+                                        <FileUpload 
+                                            endpoint="serverImage"
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                            />
                         <FormField
                             control={form.control}
                             name="email"

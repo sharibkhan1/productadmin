@@ -1,15 +1,17 @@
 // types.d.ts
 
 import NextAuth from "next-auth";
+import { DefaultSession } from "next-auth";
 
-// Define your user type
+// Define your user type with role
+
+export type ExtendedUser = DefaultSession["retailer"]&{
+  role: 'admin' | 'retailer'; // Make role optional
+  id: string; // Include ID
+
+}
 declare module "next-auth" {
-  interface User {
-    id: string; // Assuming you have an ID field
-    email: string; // Add any other fields as necessary
-  }
-
   interface Session {
-    user: User;
+    user: ExtendedUser; // Ensure session has the user type defined
   }
 }

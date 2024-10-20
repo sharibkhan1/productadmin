@@ -13,7 +13,9 @@ import { Input } from '@/components/ui/input';
 import { FormError } from '@/components/form-error';
 import { FormSuccess } from '@/components/form-success';
 import { Button } from '@/components/ui/button';
-import { signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/app/firebase/config';
 
 const AdminSignin = () => {
   const [isPending, startTransition] = useTransition();
@@ -29,26 +31,56 @@ const AdminSignin = () => {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof LoginSchema>) => {
+  const onSubmit = async (values: z.infer<typeof LoginSchema>) => {
     console.log("Submitting:", values);
     setError("");
     setSuccess("");
     startTransition(async () => {
       try {
-        const result = await Adminlogin(values); // Call the modified login function
-
+        const result = await signIn('credentials', {
+          redirect: false,
+          email: values.email,
+          password: values.password,
+        });
+  
         if (result?.error) {
           setError(result.error);
         } else {
           setSuccess("Successfully logged in!");
-          console.log("Redirecting to admin company page...");
 
-          // Redirect to the specific company page
-          const companyName = result.companyName;
-          if (companyName) {
-            router.push(`/admin/${companyName}`);
+          console.log("Redirecting to admin company page...");
+          const session = await getSession(); // You can use getSession if needed here
+
+          // After successful login, fetch the user data
+          // const userDocRef = doc(db, "admins", result?.user?.id); // Adjust according to your structure
+          // const userDoc = await getDoc(userDocRef);
+          // const userData = userDoc.data();
+  
+          if (session?.user) {
+            const adminId = session.user.id;  // Ensure this ID is correct
+            if (adminId) {
+              // Fetch admin document from Firebase using the admin ID
+              const adminDocRef = doc(db, 'admins', adminId);
+              const adminDoc = await getDoc(adminDocRef);
+
+              if (adminDoc.exists()) {
+                const adminData = adminDoc.data();
+                const companies = adminData?.companies || [];
+
+                if (companies.length > 0) {
+                  const companyName = companies[0].name;  // Get the first company name (or adjust this logic)
+                  router.push(`/admin/${companyName}`); // Redirect to the company-specific page
+                } else {
+                  setError("No associated company found.");
+                }
+              } else {
+                setError("Admin data not found.");
+              }
+            } else {
+              setError("No admin ID found in session.");
+            }
           } else {
-            setError("No associated company found.");
+            setError("User session not found.");
           }
         }
       } catch (err) {
@@ -56,6 +88,7 @@ const AdminSignin = () => {
       }
     });
   };
+  
 
   return (
     <div className="flex-1 py-36 md:px-16 w-full">

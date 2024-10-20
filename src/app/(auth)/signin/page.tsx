@@ -7,16 +7,19 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from "next/link";
-import { signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { startTransition, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { LoginSchema } from "@/schemas";
+import { login } from '../../../../actions/login';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/app/firebase/config';
 
 
 export default function Signin() {
-  const searchParams = useSearchParams();
+const searchParams = useSearchParams();
   const [error, setError] = useState<string | undefined>("");
   const [success, setSuccess] = useState<string | undefined>("");
   const [email, setEmail] = useState('');
@@ -33,30 +36,61 @@ export default function Signin() {
 });
 
 const onSubmit = async (values: z.infer<typeof LoginSchema>) => {
+    console.log("Submitting:", values);
+
   setError('');
   setSuccess('');
 
   startTransition(async () => {
-      const response = await signIn('credentials', {
-          email: values.email,
-          password: values.password,
-          redirect: false, // Prevent automatic redirect for manual handling
-          callbackUrl:'/retialers',
-      });
+    try {
+      const result = await signIn('credentials', {
+        redirect: false,
 
-      if (response?.error) {
-        // Set the error message from response
-        setError(response.error === "Invalid credentials!" 
-            ? "Invalid email or password!" 
-            : "Invalid email or password!");  // Handle specific error messages if needed
-        form.reset(); // Optionally reset form fields
-    } else if (response?.url) {
-        setSuccess('Login successful! Redirecting...');
-        window.location.href = response.url; // Redirect to the success URL
+        email: values.email,
+        password: values.password,
+      });
+      console.log("Sign-in result:", result); // Log the sign-in result
+
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        setSuccess("Successfully logged in!");
+
+        console.log("Redirecting to retaielr  company page...");
+        const session = await getSession(); // You can use getSession if needed here
+
+        // After successful login, fetch the user data
+        // const userDocRef = doc(db, "admins", result?.user?.id); // Adjust according to your structure
+        // const userDoc = await getDoc(userDocRef);
+        // const userData = userDoc.data();
+
+        if (session?.user) {
+          const retailerId = session.user.id;  // Ensure this ID is correct
+          router.push(`/retailers/${retailerId}`); // Redirect to the retailer page
+
+          if (retailerId) {
+            // Fetch admin document from Firebase using the admin ID
+            const adminDocRef = doc(db, 'retailers', retailerId);
+            const adminDoc = await getDoc(adminDocRef);
+
+            if (adminDoc.exists()) {
+              const adminData = adminDoc.data();
+
+            } else {
+              setError("retaielr data not found.");
+            }
+          } else {
+            setError("No retaielr ID found in session.");
+          }
+        } else {
+          setError("retaielr User session not found.");
+        }
+      }
+    } catch (err) {
+      setError("Something went wrong! ");
     }
   });
 };
-
   return (
     <>
         <div className="flex-1 py-36 md:px-16 w-full">
